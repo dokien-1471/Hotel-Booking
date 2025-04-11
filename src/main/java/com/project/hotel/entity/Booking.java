@@ -19,11 +19,11 @@ public class Booking {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
     
@@ -39,8 +39,12 @@ public class Booking {
     @Column(nullable = false)
     private String status; // PENDING, CONFIRMED, CANCELLED, COMPLETED
     
+    @Column(unique = true)
     private String bookingReference;
     
     @Column(nullable = false)
     private LocalDate bookingDate;
+    
+    @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Payment payment;
 }

@@ -1,7 +1,9 @@
 package com.project.hotel.controller;
 
 import com.project.hotel.dto.BookingDTO;
+import com.project.hotel.dto.PaymentDTO;
 import com.project.hotel.service.BookingService;
+import com.project.hotel.service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -18,10 +20,12 @@ import java.util.List;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final PaymentService paymentService;
 
     @Autowired
-    public BookingController(BookingService bookingService) {
+    public BookingController(BookingService bookingService, PaymentService paymentService) {
         this.bookingService = bookingService;
+        this.paymentService = paymentService;
     }
 
     @PostMapping
@@ -94,5 +98,13 @@ public class BookingController {
     public ResponseEntity<BookingDTO> getBookingByReference(@PathVariable String reference) {
         BookingDTO booking = bookingService.getBookingByReference(reference);
         return ResponseEntity.ok(booking);
+    }
+    
+    @PostMapping("/{id}/payment")
+    public ResponseEntity<PaymentDTO> initiatePayment(
+            @PathVariable Long id,
+            @RequestParam String paymentMethod) {
+        PaymentDTO payment = paymentService.processPayment(id, paymentMethod);
+        return ResponseEntity.ok(payment);
     }
 }
