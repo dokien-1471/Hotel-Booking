@@ -9,10 +9,17 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.project</groupId>
+<<<<<<< HEAD
 	<artifactId>hotel</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>hotel</name>
 	<description>Project for hotel booking</description>
+=======
+	<artifactId>hotel_booking</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>hotel_booking</name>
+	<description>Demo project for Spring Boot</description>
+>>>>>>> bcb5139057656239eb29d95d998a622016995726
 	<url/>
 	<licenses>
 		<license/>
@@ -28,7 +35,10 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+<<<<<<< HEAD
 		<jjwt.version>0.11.5</jjwt.version>
+=======
+>>>>>>> bcb5139057656239eb29d95d998a622016995726
 	</properties>
 	<dependencies>
 		<dependency>
@@ -37,6 +47,13 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+<<<<<<< HEAD
+=======
+			<artifactId>spring-boot-starter-oauth2-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+>>>>>>> bcb5139057656239eb29d95d998a622016995726
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 		<dependency>
@@ -74,6 +91,7 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+<<<<<<< HEAD
 		
 		<!-- JWT Dependencies -->
 		<dependency>
@@ -93,6 +111,8 @@
 			<version>${jjwt.version}</version>
 			<scope>runtime</scope>
 		</dependency>
+=======
+>>>>>>> bcb5139057656239eb29d95d998a622016995726
 	</dependencies>
 
 	<build>
