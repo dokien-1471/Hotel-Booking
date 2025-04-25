@@ -218,6 +218,12 @@ public class BookingServiceImpl implements BookingService {
         return convertToDTO(booking);
     }
 
+    @Override
+    public Booking findBookingEntityById(Long id) {
+        return bookingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
+    }
+
     private String generateBookingReference() {
         // Generate a unique booking reference (e.g., HB-UUID-TIMESTAMP)
         return "HB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase() + "-" + System.currentTimeMillis() % 10000;

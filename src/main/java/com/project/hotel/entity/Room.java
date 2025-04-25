@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Data
@@ -18,7 +20,7 @@ public class Room {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String roomNumber;
     
     @Column(nullable = false)
@@ -34,4 +36,11 @@ public class Room {
     private String description;
     
     private String photo; // URL or path to the room photo
+<<<<<<< HEAD
 }
+=======
+    
+    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL)
+    private List<Booking> bookings = new ArrayList<>();
+}
+>>>>>>> 8eba4e09bc0792bc00a45d21d5208f350a00e30e

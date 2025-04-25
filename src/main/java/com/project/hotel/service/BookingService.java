@@ -1,6 +1,7 @@
 package com.project.hotel.service;
 
 import com.project.hotel.dto.BookingDTO;
+import com.project.hotel.entity.Booking;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -27,4 +28,11 @@ public interface BookingService {
     void deleteBooking(Long id);
 
     BookingDTO getBookingByReference(String reference);
+<<<<<<< HEAD
 }
+=======
+    
+    // Method for internal use to get the entity
+    Booking findBookingEntityById(Long id);
+}
+>>>>>>> 8eba4e09bc0792bc00a45d21d5208f350a00e30e
