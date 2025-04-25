@@ -70,7 +70,7 @@ public class BookingController {
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<BookingDTO> updateBookingStatus(
-            @PathVariable Long id, 
+            @PathVariable Long id,
             @RequestParam String status) {
         BookingDTO updatedBooking = bookingService.updateBookingStatus(id, status);
         return ResponseEntity.ok(updatedBooking);
@@ -78,7 +78,7 @@ public class BookingController {
 
     @PutMapping("/{id}")
     public ResponseEntity<BookingDTO> updateBooking(
-            @PathVariable Long id, 
+            @PathVariable Long id,
             @Valid @RequestBody BookingDTO bookingDTO) {
         BookingDTO updatedBooking = bookingService.updateBooking(id, bookingDTO);
         return ResponseEntity.ok(updatedBooking);

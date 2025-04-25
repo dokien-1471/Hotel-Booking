@@ -13,13 +13,15 @@ import java.util.List;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByUser(User user);
-    
+
     List<Booking> findByRoom(Room room);
-    
+
     List<Booking> findByStatus(String status);
-    
+
     @Query("SELECT b FROM Booking b WHERE b.checkInDate <= ?2 AND b.checkOutDate >= ?1")
     List<Booking> findBookingsInDateRange(LocalDate startDate, LocalDate endDate);
-    
+
     Booking findByBookingReference(String bookingReference);
+
+    List<Booking> findByCheckInDateBetweenAndStatus(LocalDate startDate, LocalDate endDate, String status);
 }

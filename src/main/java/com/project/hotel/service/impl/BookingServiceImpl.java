@@ -50,10 +50,10 @@ public class BookingServiceImpl implements BookingService {
         // Check if room is already booked for the requested dates
         List<Booking> existingBookings = bookingRepository.findBookingsInDateRange(
                 bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
-        
+
         boolean roomAlreadyBooked = existingBookings.stream()
                 .anyMatch(booking -> booking.getRoom().getId().equals(room.getId()));
-        
+
         if (roomAlreadyBooked) {
             throw new RuntimeException("Room is already booked for the selected dates");
         }
@@ -61,7 +61,7 @@ public class BookingServiceImpl implements BookingService {
         // Calculate total price based on number of days and room price
         long days = ChronoUnit.DAYS.between(bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
         if (days == 0) days = 1; // Minimum 1 day charge
-        
+
         // Create booking entity
         Booking booking = new Booking();
         booking.setUser(user);
@@ -132,16 +132,16 @@ public class BookingServiceImpl implements BookingService {
     public BookingDTO updateBookingStatus(Long id, String status) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-        
+
         booking.setStatus(status);
-        
+
         // If booking is cancelled, make the room available again
         if (status.equals("CANCELLED") || status.equals("COMPLETED")) {
             Room room = booking.getRoom();
             room.setAvailable(true);
             roomService.updateRoom(room.getId(), convertRoomToDTO(room));
         }
-        
+
         Booking updatedBooking = bookingRepository.save(booking);
         return convertToDTO(updatedBooking);
     }
@@ -157,23 +157,23 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // Check if dates are being changed and if the room is available for those dates
-        if (!booking.getCheckInDate().equals(bookingDTO.getCheckInDate()) || 
-            !booking.getCheckOutDate().equals(bookingDTO.getCheckOutDate())) {
-            
+        if (!booking.getCheckInDate().equals(bookingDTO.getCheckInDate()) ||
+                !booking.getCheckOutDate().equals(bookingDTO.getCheckOutDate())) {
+
             List<Booking> existingBookings = bookingRepository.findBookingsInDateRange(
                     bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
-            
+
             boolean roomAlreadyBooked = existingBookings.stream()
                     .anyMatch(b -> b.getRoom().getId().equals(booking.getRoom().getId()) && !b.getId().equals(id));
-            
+
             if (roomAlreadyBooked) {
                 throw new RuntimeException("Room is already booked for the selected dates");
             }
-            
+
             // Update dates
             booking.setCheckInDate(bookingDTO.getCheckInDate());
             booking.setCheckOutDate(bookingDTO.getCheckOutDate());
-            
+
             // Recalculate total price
             long days = ChronoUnit.DAYS.between(bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
             if (days == 0) days = 1; // Minimum 1 day charge
@@ -183,7 +183,7 @@ public class BookingServiceImpl implements BookingService {
         // Update status if provided
         if (bookingDTO.getStatus() != null && !bookingDTO.getStatus().isEmpty()) {
             booking.setStatus(bookingDTO.getStatus());
-            
+
             // If booking is cancelled or completed, make the room available again
             if (bookingDTO.getStatus().equals("CANCELLED") || bookingDTO.getStatus().equals("COMPLETED")) {
                 Room room = booking.getRoom();
@@ -200,12 +200,12 @@ public class BookingServiceImpl implements BookingService {
     public void deleteBooking(Long id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-        
+
         // Make the room available again
         Room room = booking.getRoom();
         room.setAvailable(true);
         roomService.updateRoom(room.getId(), convertRoomToDTO(room));
-        
+
         bookingRepository.deleteById(id);
     }
 
@@ -234,12 +234,12 @@ public class BookingServiceImpl implements BookingService {
         bookingDTO.setStatus(booking.getStatus());
         bookingDTO.setBookingReference(booking.getBookingReference());
         bookingDTO.setBookingDate(booking.getBookingDate());
-        
+
         // Additional information
         bookingDTO.setUserFullName(booking.getUser().getFirstName() + " " + booking.getUser().getLastName());
         bookingDTO.setRoomNumber(booking.getRoom().getRoomNumber());
         bookingDTO.setRoomType(booking.getRoom().getRoomType());
-        
+
         return bookingDTO;
     }
 
