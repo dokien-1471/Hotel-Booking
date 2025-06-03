@@ -30,7 +30,8 @@ public class AuthController {
     private final UserService userService;
 
     @Autowired
-    public AuthController(AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider, UserService userService) {
+    public AuthController(AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
+            UserService userService) {
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.userService = userService;
@@ -41,19 +42,17 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.get("email"),
-                        loginRequest.get("password")
-                )
-        );
+                        loginRequest.get("password")));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = tokenProvider.generateToken(authentication);
-        
+
         UserDTO userDTO = userService.getUserByEmail(loginRequest.get("email"));
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("token", jwt);
         response.put("user", userDTO);
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -61,9 +60,9 @@ public class AuthController {
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserDTO userDTO) {
         // Set default role if not provided
         if (userDTO.getRole() == null || userDTO.getRole().isEmpty()) {
-            userDTO.setRole("USER");
+            userDTO.setRole("ROLE_USER");
         }
-        
+
         UserDTO createdUser = userService.createUser(userDTO);
         return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
     }

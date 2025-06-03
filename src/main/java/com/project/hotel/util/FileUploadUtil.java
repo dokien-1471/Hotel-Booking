@@ -10,14 +10,14 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 public class FileUploadUtil {
-    
+
     public static String saveFile(String uploadDir, String fileName, MultipartFile multipartFile) throws IOException {
         Path uploadPath = Paths.get(uploadDir);
-        
+
         if (!Files.exists(uploadPath)) {
             Files.createDirectories(uploadPath);
         }
-        
+
         try (InputStream inputStream = multipartFile.getInputStream()) {
             Path filePath = uploadPath.resolve(fileName);
             Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
@@ -26,7 +26,7 @@ public class FileUploadUtil {
             throw new IOException("Could not save file: " + fileName, e);
         }
     }
-    
+
     public static void deleteFile(String filePath) throws IOException {
         Path path = Paths.get(filePath);
         Files.deleteIfExists(path);

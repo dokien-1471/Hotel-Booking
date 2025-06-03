@@ -1,5 +1,6 @@
 package com.project.hotel.repository;
 
+import com.project.hotel.constant.BookingStatus;
 import com.project.hotel.entity.Booking;
 import com.project.hotel.entity.Room;
 import com.project.hotel.entity.User;
@@ -16,12 +17,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByRoom(Room room);
 
-    List<Booking> findByStatus(String status);
+    List<Booking> findByStatus(BookingStatus status);
 
     @Query("SELECT b FROM Booking b WHERE b.checkInDate <= ?2 AND b.checkOutDate >= ?1")
     List<Booking> findBookingsInDateRange(LocalDate startDate, LocalDate endDate);
 
     Booking findByBookingReference(String bookingReference);
 
-    List<Booking> findByCheckInDateBetweenAndStatus(LocalDate startDate, LocalDate endDate, String status);
+    List<Booking> findByCheckInDateBetweenAndStatus(LocalDate startDate, LocalDate endDate, BookingStatus status);
 }

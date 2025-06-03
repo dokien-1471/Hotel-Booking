@@ -20,14 +20,17 @@ public class VNPayUtil {
 
   public String createPaymentUrl(String orderId, long amount, String orderInfo) {
     try {
-      String vnp_Version = "2.1.0";
-      String vnp_Command = "pay";
+      String vnp_Version = vnPayConfig.getVersion();
+      String vnp_Command = vnPayConfig.getCommand();
       String vnp_TxnRef = orderId;
       String vnp_IpAddr = "127.0.0.1";
       String vnp_TmnCode = vnPayConfig.getTmnCode();
       String vnp_HashSecret = vnPayConfig.getHashSecret();
-      String vnp_Url = vnPayConfig.getVnpUrl();
+      String vnp_Url = vnPayConfig.getUrl();
       String vnp_ReturnUrl = vnPayConfig.getReturnUrl();
+      String vnp_Locale = vnPayConfig.getLocale();
+      String vnp_CurrencyCode = vnPayConfig.getCurrencyCode();
+      String vnp_OrderType = vnPayConfig.getOrderType();
 
       Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
       SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
@@ -44,20 +47,22 @@ public class VNPayUtil {
       vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
       vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
       vnp_Params.put("vnp_OrderInfo", orderInfo);
-      vnp_Params.put("vnp_OrderType", "other");
+      vnp_Params.put("vnp_OrderType", vnp_OrderType);
       vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
       vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
       vnp_Params.put("vnp_ReturnUrl", vnp_ReturnUrl);
+      vnp_Params.put("vnp_Locale", vnp_Locale);
+      vnp_Params.put("vnp_CurrencyCode", vnp_CurrencyCode);
 
-      List fieldNames = new ArrayList(vnp_Params.keySet());
+      List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
       Collections.sort(fieldNames);
 
       StringBuilder hashData = new StringBuilder();
       StringBuilder query = new StringBuilder();
-      Iterator itr = fieldNames.iterator();
+      Iterator<String> itr = fieldNames.iterator();
       while (itr.hasNext()) {
-        String fieldName = (String) itr.next();
-        String fieldValue = (String) vnp_Params.get(fieldName);
+        String fieldName = itr.next();
+        String fieldValue = vnp_Params.get(fieldName);
         if ((fieldValue != null) && (fieldValue.length() > 0)) {
           hashData.append(fieldName);
           hashData.append('=');
@@ -83,9 +88,9 @@ public class VNPayUtil {
   private String hmacSHA512(String key, String data) {
     try {
       Mac sha512_HMAC = Mac.getInstance("HmacSHA512");
-      SecretKeySpec secret_key = new SecretKeySpec(key.getBytes(), "HmacSHA512");
+      SecretKeySpec secret_key = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
       sha512_HMAC.init(secret_key);
-      byte[] bytes = sha512_HMAC.doFinal(data.getBytes());
+      byte[] bytes = sha512_HMAC.doFinal(data.getBytes(StandardCharsets.UTF_8));
       return bytesToHex(bytes);
     } catch (Exception e) {
       throw new RuntimeException("Error generating HMAC SHA512", e);
@@ -102,16 +107,19 @@ public class VNPayUtil {
 
   public boolean validatePaymentResponse(Map<String, String> responseParams) {
     String vnp_SecureHash = responseParams.get("vnp_SecureHash");
+    if (vnp_SecureHash == null || vnp_SecureHash.isEmpty()) {
+      return false;
+    }
     responseParams.remove("vnp_SecureHash");
 
-    List fieldNames = new ArrayList(responseParams.keySet());
+    List<String> fieldNames = new ArrayList<>(responseParams.keySet());
     Collections.sort(fieldNames);
 
     StringBuilder hashData = new StringBuilder();
-    Iterator itr = fieldNames.iterator();
+    Iterator<String> itr = fieldNames.iterator();
     while (itr.hasNext()) {
-      String fieldName = (String) itr.next();
-      String fieldValue = (String) responseParams.get(fieldName);
+      String fieldName = itr.next();
+      String fieldValue = responseParams.get(fieldName);
       if ((fieldValue != null) && (fieldValue.length() > 0)) {
         hashData.append(fieldName);
         hashData.append('=');

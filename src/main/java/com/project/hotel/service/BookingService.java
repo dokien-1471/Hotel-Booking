@@ -28,11 +28,39 @@ public interface BookingService {
     void deleteBooking(Long id);
 
     BookingDTO getBookingByReference(String reference);
-<<<<<<< HEAD
+
+    Booking findBookingEntityById(Long bookingId);
+
+    /**
+     * Cancels a booking and handles related business logic
+     * 
+     * @param id The ID of the booking to cancel
+     * @return The canceled booking DTO
+     * @throws RuntimeException if booking cannot be canceled
+     */
+    BookingDTO cancelBooking(Long id);
+
+    /**
+     * Confirms a booking after successful payment
+     * 
+     * @param id The ID of the booking to confirm
+     * @return The confirmed booking DTO
+     */
+    BookingDTO confirmBooking(Long id);
+
+    /**
+     * Checks if a booking can be cancelled
+     * 
+     * @param id The ID of the booking to check
+     * @return true if the booking can be cancelled, false otherwise
+     */
+    boolean canCancelBooking(Long id);
+
+    /**
+     * Gets the current status of a booking
+     * 
+     * @param id The ID of the booking
+     * @return The current status of the booking
+     */
+    String getBookingStatus(Long id);
 }
-=======
-    
-    // Method for internal use to get the entity
-    Booking findBookingEntityById(Long id);
-}
->>>>>>> 8eba4e09bc0792bc00a45d21d5208f350a00e30e

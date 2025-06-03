@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -26,18 +28,29 @@ public class Payment {
     private LocalDateTime paymentTime;
 
     @Column(nullable = false)
-    private String method; // VNPAY, MOMO, COD, etc.
+    private String method;
 
     @Column(nullable = false)
-    private String status; // PENDING, SUCCESS, FAILED
+    private String status;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "booking_id", nullable = false, unique = true)
+    @ManyToOne
+    @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
     @Column(unique = true)
     private String transactionId;
-    
-    @Column(nullable = false, unique = true)
+
+    @Column(name = "payment_reference", unique = true)
     private String paymentReference;
+
+    @Column(name = "vnpay_order_id", unique = true)
+    private String vnpayOrderId;
+
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
 }

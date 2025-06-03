@@ -1,23 +1,12 @@
 package com.project.hotel.service;
 
-import com.project.hotel.util.VNPayUtil;
-import org.springframework.stereotype.Service;
+import com.project.hotel.dto.VNPayRequestDTO;
+import com.project.hotel.dto.VNPayResponseDTO;
 
-import java.util.Map;
+public interface VNPayService {
+  String createPaymentUrl(VNPayRequestDTO request);
 
-@Service
-public class VNPayService {
-  private final VNPayUtil vnPayUtil;
+  boolean validatePaymentResponse(String responseCode, String txnRef, String transactionNo);
 
-  public VNPayService(VNPayUtil vnPayUtil) {
-    this.vnPayUtil = vnPayUtil;
-  }
-
-  public String createPaymentUrl(String orderId, long amount, String orderInfo) {
-    return vnPayUtil.createPaymentUrl(orderId, amount, orderInfo);
-  }
-
-  public boolean validatePaymentResponse(Map<String, String> responseParams) {
-    return vnPayUtil.validatePaymentResponse(responseParams);
-  }
+  VNPayResponseDTO processPaymentResponse(String responseCode, String txnRef, String transactionNo);
 }

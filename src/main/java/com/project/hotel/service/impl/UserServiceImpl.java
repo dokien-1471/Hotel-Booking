@@ -4,6 +4,7 @@ import com.project.hotel.dto.UserDTO;
 import com.project.hotel.entity.User;
 import com.project.hotel.repository.UserRepository;
 import com.project.hotel.service.UserService;
+import com.project.hotel.constant.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class UserServiceImpl implements UserService {
         user.setLastName(userDTO.getLastName());
         user.setEmail(userDTO.getEmail());
         user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
-        user.setRole(userDTO.getRole() != null ? userDTO.getRole() : "USER");
+        user.setRole(UserRole.valueOf(userDTO.getRole() != null ? userDTO.getRole() : "ROLE_USER"));
 
         // Save user
         User savedUser = userRepository.save(user);
@@ -73,7 +74,7 @@ public class UserServiceImpl implements UserService {
 
         user.setFirstName(userDTO.getFirstName());
         user.setLastName(userDTO.getLastName());
-        
+
         // Only update email if it's changed and not already taken by another user
         if (!user.getEmail().equals(userDTO.getEmail())) {
             if (userRepository.existsByEmail(userDTO.getEmail())) {
@@ -81,15 +82,15 @@ public class UserServiceImpl implements UserService {
             }
             user.setEmail(userDTO.getEmail());
         }
-        
+
         // Update password only if provided
         if (userDTO.getPassword() != null && !userDTO.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
         }
-        
+
         // Update role if provided
         if (userDTO.getRole() != null) {
-            user.setRole(userDTO.getRole());
+            user.setRole(UserRole.valueOf(userDTO.getRole()));
         }
 
         User updatedUser = userRepository.save(user);
@@ -116,7 +117,7 @@ public class UserServiceImpl implements UserService {
         userDTO.setFirstName(user.getFirstName());
         userDTO.setLastName(user.getLastName());
         userDTO.setEmail(user.getEmail());
-        userDTO.setRole(user.getRole());
+        userDTO.setRole(user.getRole().name());
         // Don't set password in DTO for security reasons
         return userDTO;
     }
