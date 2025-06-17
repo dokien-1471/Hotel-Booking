@@ -2,55 +2,72 @@ package com.project.hotel.service.impl;
 
 import com.project.hotel.dto.RoomDTO;
 import com.project.hotel.entity.Room;
+import com.project.hotel.entity.Booking;
+import com.project.hotel.constant.BookingStatus;
+import com.project.hotel.repository.BookingRepository;
+import com.project.hotel.entity.Room;
+import com.project.hotel.entity.Booking;
+import com.project.hotel.constant.BookingStatus;
 import com.project.hotel.exception.ResourceNotFoundException;
 import com.project.hotel.exception.RoomAlreadyExistsException;
+import com.project.hotel.exception.ValidationException;
 import com.project.hotel.repository.RoomRepository;
+import com.project.hotel.repository.BookingRepository;
 import com.project.hotel.service.RoomService;
 import com.project.hotel.constant.RoomType;
 import com.project.hotel.util.FileUploadUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+import com.project.hotel.entity.Booking;
+import com.project.hotel.repository.BookingRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+@Slf4j
 @Service
 public class RoomServiceImpl implements RoomService {
 
     private final RoomRepository roomRepository;
+    private final BookingRepository bookingRepository;
     private static final String UPLOAD_DIR = "uploads/rooms";
+    private static final Logger log = LoggerFactory.getLogger(RoomServiceImpl.class);
 
     @Autowired
-    public RoomServiceImpl(RoomRepository roomRepository) {
+    public RoomServiceImpl(RoomRepository roomRepository, BookingRepository bookingRepository) {
         this.roomRepository = roomRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     @Override
     @Transactional
     public RoomDTO createRoom(RoomDTO roomDTO) {
-        // Validate room number uniqueness
+
         if (roomRepository.findByRoomNumber(roomDTO.getRoomNumber()) != null) {
-            throw new RoomAlreadyExistsException("Room with number " + roomDTO.getRoomNumber() + " already exists");
+            throw new RoomAlreadyExistsException("Phòng số " + roomDTO.getRoomNumber() + " đã tồn tại");
         }
 
-        // Convert DTO to entity
+        validateRoomData(roomDTO);
+
         Room room = convertToEntity(roomDTO);
+        room.setAvailable(true);
 
-        // Save room
         Room savedRoom = roomRepository.save(room);
-
-        // Convert saved entity to DTO
         return convertToDTO(savedRoom);
     }
 
     @Override
     public RoomDTO getRoomById(Long id) {
-        Room room = roomRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Room not found with id: " + id));
+        Room room = findRoomEntityById(id);
         return convertToDTO(room);
     }
 
@@ -85,40 +102,54 @@ public class RoomServiceImpl implements RoomService {
     @Override
     @Transactional
     public RoomDTO updateRoom(Long id, RoomDTO roomDTO) {
-        // Find existing room
-        Room room = roomRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Room not found with id: " + id));
 
-        // Check if room number is being changed and if it's already taken
+        Room room = findRoomEntityById(id);
+
         if (!room.getRoomNumber().equals(roomDTO.getRoomNumber())) {
             if (roomRepository.findByRoomNumber(roomDTO.getRoomNumber()) != null) {
-                throw new RoomAlreadyExistsException("Room with number " + roomDTO.getRoomNumber() + " already exists");
+                throw new RoomAlreadyExistsException("Phòng số " + roomDTO.getRoomNumber() + " đã tồn tại");
             }
         }
 
-        // Update room properties
+        validateRoomData(roomDTO);
+
         updateRoomFromDTO(room, roomDTO);
 
-        // Save updated room
         Room updatedRoom = roomRepository.save(room);
-
-        // Convert to DTO and return
         return convertToDTO(updatedRoom);
     }
 
     @Override
     @Transactional
     public void deleteRoom(Long id) {
-        if (!roomRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Room not found with id: " + id);
+        Room room = findRoomEntityById(id);
+
+        // Check for active bookings
+        List<Booking> activeBookings = bookingRepository.findByRoomAndStatusNot(room, BookingStatus.CANCELLED);
+        if (!activeBookings.isEmpty()) {
+            throw new ValidationException("Không thể xóa phòng vì có đơn đặt phòng đang hoạt động");
         }
+
+        // Delete room images if any
+        if (room.getImages() != null && !room.getImages().isEmpty()) {
+            for (String imageUrl : room.getImages()) {
+                try {
+                    String fileName = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
+                    FileUploadUtil.deleteFile(UPLOAD_DIR + "/" + fileName);
+                } catch (IOException e) {
+                    // Log warning but continue with room deletion
+                    log.warn("Không thể xóa ảnh {}: {}", imageUrl, e.getMessage());
+                }
+            }
+        }
+
         roomRepository.deleteById(id);
     }
 
     @Override
     public Room findRoomEntityById(Long id) {
         return roomRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Room not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng với id: " + id));
     }
 
     @Override
@@ -127,15 +158,27 @@ public class RoomServiceImpl implements RoomService {
         Room room = findRoomEntityById(roomId);
 
         try {
-            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-            String filePath = FileUploadUtil.saveFile(UPLOAD_DIR, fileName, file);
+
+            String originalFilename = file.getOriginalFilename();
+            String extension = originalFilename != null ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                    : "";
+            String fileName = UUID.randomUUID().toString() + extension;
+
+            String filePath = FileUploadUtil.saveFile("uploads", fileName, file);
+
             String imageUrl = "/api/uploads/" + fileName;
 
+            // Add image URL to room's image list
+            if (room.getImages() == null) {
+                room.setImages(new ArrayList<>());
+            }
             room.getImages().add(imageUrl);
+
+            // Save updated room
             Room updatedRoom = roomRepository.save(room);
             return convertToDTO(updatedRoom);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to upload image: " + e.getMessage());
+            throw new RuntimeException("Could not upload image: " + e.getMessage());
         }
     }
 
@@ -146,12 +189,14 @@ public class RoomServiceImpl implements RoomService {
 
         if (room.getImages().remove(imageUrl)) {
             try {
+
                 String fileName = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
-                FileUploadUtil.deleteFile(UPLOAD_DIR + "/" + fileName);
+                FileUploadUtil.deleteFile("uploads/" + fileName);
+
                 Room updatedRoom = roomRepository.save(room);
                 return convertToDTO(updatedRoom);
             } catch (IOException e) {
-                throw new RuntimeException("Failed to delete image: " + e.getMessage());
+                throw new RuntimeException("Could not delete image: " + e.getMessage());
             }
         }
         throw new ResourceNotFoundException("Image not found in room: " + imageUrl);
@@ -163,17 +208,32 @@ public class RoomServiceImpl implements RoomService {
         return room.getImages();
     }
 
-    // Helper methods for conversion
+    // Helper methods
+    private void validateRoomData(RoomDTO roomDTO) {
+        if (roomDTO.getRoomNumber() == null || roomDTO.getRoomNumber().trim().isEmpty()) {
+            throw new IllegalArgumentException("Số phòng không được để trống");
+        }
+        if (roomDTO.getRoomType() == null) {
+            throw new IllegalArgumentException("Loại phòng không được để trống");
+        }
+        if (roomDTO.getPrice() == null || roomDTO.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Giá phòng phải lớn hơn 0");
+        }
+    }
+
     private RoomDTO convertToDTO(Room room) {
         RoomDTO roomDTO = new RoomDTO();
         roomDTO.setId(room.getId());
         roomDTO.setRoomNumber(room.getRoomNumber());
         roomDTO.setRoomType(room.getRoomType());
+        roomDTO.setType(room.getRoomType());
         roomDTO.setPrice(room.getPrice());
         roomDTO.setAvailable(room.isAvailable());
         roomDTO.setDescription(room.getDescription());
         roomDTO.setImages(room.getImages());
         roomDTO.setAmenities(room.getAmenities());
+        roomDTO.setName("Phòng " + room.getRoomNumber());
+
         return roomDTO;
     }
 
@@ -184,6 +244,7 @@ public class RoomServiceImpl implements RoomService {
         room.setPrice(roomDTO.getPrice());
         room.setAvailable(roomDTO.isAvailable());
         room.setDescription(roomDTO.getDescription());
+
         if (roomDTO.getImages() != null) {
             room.setImages(roomDTO.getImages());
         }
@@ -199,6 +260,7 @@ public class RoomServiceImpl implements RoomService {
         room.setPrice(roomDTO.getPrice());
         room.setAvailable(roomDTO.isAvailable());
         room.setDescription(roomDTO.getDescription());
+
         if (roomDTO.getImages() != null) {
             room.setImages(roomDTO.getImages());
         }

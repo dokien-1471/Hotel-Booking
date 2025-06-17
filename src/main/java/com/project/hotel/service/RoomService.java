@@ -25,7 +25,7 @@ public interface RoomService {
 
     Room findRoomEntityById(Long id);
 
-    // New methods for image management
+
     RoomDTO addRoomImage(Long roomId, MultipartFile file);
 
     RoomDTO removeRoomImage(Long roomId, String imageUrl);

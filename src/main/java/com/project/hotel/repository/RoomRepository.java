@@ -16,6 +16,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 
     Room findByRoomNumber(String roomNumber);
 
+
+
     @Query(value = "SELECT DISTINCT r.* FROM rooms r " +
             "JOIN room_amenities ra ON r.id = ra.room_id " +
             "WHERE ra.amenity IN (:amenities) " +

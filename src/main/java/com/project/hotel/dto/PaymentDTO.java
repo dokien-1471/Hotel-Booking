@@ -15,18 +15,15 @@ import java.time.LocalDateTime;
 public class PaymentDTO {
     private Long id;
 
-    @NotNull(message = "Amount is required")
-    @Positive(message = "Amount must be positive")
+    @NotNull(message = "Vui lòng nhập số tiền thanh toán")
+    @Positive(message = "Số tiền phải lớn hơn 0")
     private BigDecimal amount;
 
-    private LocalDateTime paymentTime;
-
-    private String status;
-
-    @NotNull(message = "Booking ID is required")
+    @NotNull(message = "Vui lòng chọn đơn đặt phòng")
     private Long bookingId;
 
-    private String transactionId;
-
-    private String method;
+    private String transactionId; 
+    private String status; 
+    private LocalDateTime paymentTime; 
+    private String method; 
 }

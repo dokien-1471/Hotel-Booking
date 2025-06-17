@@ -14,9 +14,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
 
+/**
+ * Entity đại diện cho đơn đặt phòng
+ */
 @Entity
 @Data
 @NoArgsConstructor
@@ -40,77 +41,94 @@ public class Booking {
 
     @NotNull(message = "Check-in date is required")
     @Future(message = "Check-in date must be in the future")
-    @Column(nullable = false)
+    @Column(name = "check_in_date", nullable = false)
     private LocalDate checkInDate;
 
     @NotNull(message = "Check-out date is required")
     @Future(message = "Check-out date must be in the future")
-    @Column(nullable = false)
+    @Column(name = "check_out_date", nullable = false)
     private LocalDate checkOutDate;
-
-    @Column(nullable = false)
-    private LocalTime checkInTime = LocalTime.of(14, 0); // Default check-in time 2:00 PM
-
-    @Column(nullable = false)
-    private LocalTime checkOutTime = LocalTime.of(12, 0); // Default check-out time 12:00 PM
 
     @NotNull(message = "Total price is required")
     @Positive(message = "Total price must be positive")
-    @Column(nullable = false)
+    @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
 
-    @NotNull(message = "Status is required")
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private BookingStatus status = BookingStatus.PENDING;
-
-    @Column(unique = true)
+    @Column(name = "booking_reference", unique = true, nullable = false)
     private String bookingReference;
 
-    @CreationTimestamp
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime bookingDate;
+    @Column(name = "guest_full_name", nullable = false)
+    private String guestFullName;
 
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "guest_email", nullable = false)
+    private String guestEmail;
 
-    @Column
-    private String specialRequests;
+    @Positive(message = "Number of adults must be positive")
+    @Column(name = "num_of_adults", nullable = false)
+    private Integer numOfAdults;
 
-    @Column
+    @Column(name = "num_of_children")
+    private Integer numOfChildren;
+
+    @Column(name = "total_num_of_guests", nullable = false)
     private Integer numberOfGuests;
 
-    @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Column(name = "special_requests", length = 500)
+    private String specialRequests;
+
+    @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL)
     private Payment payment;
 
-    @Column
-    private String cancellationReason;
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    private LocalDateTime createdAt;
 
-    @Column
-    private LocalDateTime cancellationDate;
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "booking_date", nullable = false)
+    private LocalDateTime bookingDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private BookingStatus status;
+
+    /**
+     * Tính tổng số khách dựa trên số người lớn và trẻ em
+     */
+    public void calculateTotalNumberOfGuest() {
+        this.numberOfGuests = (this.numOfAdults != null ? this.numOfAdults : 0) +
+                (this.numOfChildren != null ? this.numOfChildren : 0);
+    }
 
     @PrePersist
-    public void generateBookingReference() {
-        if (bookingReference == null) {
-            this.bookingReference = "BK" + System.currentTimeMillis();
+    protected void onCreate() {
+        if (this.bookingDate == null) {
+            this.bookingDate = LocalDateTime.now();
         }
+        calculateTotalNumberOfGuest();
     }
 
-    // Tính tổng tiền dựa trên giá phòng và số ngày
-    public void calculateTotalPrice() {
-        if (room != null && checkInDate != null && checkOutDate != null) {
-            long numberOfDays = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
-            this.totalPrice = room.getPrice().multiply(BigDecimal.valueOf(numberOfDays));
-        }
+    @PreUpdate
+    protected void onUpdate() {
+        calculateTotalNumberOfGuest();
     }
 
-    // Kiểm tra xem ngày check-out có sau ngày check-in không
+    /**
+     * Kiểm tra xem ngày trả phòng có sau ngày nhận phòng không
+     * 
+     * @return true nếu ngày trả phòng hợp lệ
+     */
     public boolean isValidDates() {
         return checkOutDate.isAfter(checkInDate);
     }
 
-    // Kiểm tra xem phòng có trống trong khoảng thời gian này không
+    /**
+     * Kiểm tra xem phòng có còn trống không
+     * 
+     * @return true nếu phòng còn trống
+     */
     public boolean isRoomAvailable() {
         return room != null && room.isAvailable();
     }

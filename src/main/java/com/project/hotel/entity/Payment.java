@@ -4,11 +4,11 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
+import com.project.hotel.constant.PaymentMethod;
+import com.project.hotel.constant.PaymentStatus;
 
 @Entity
 @Data
@@ -27,30 +27,19 @@ public class Payment {
     @Column(nullable = false)
     private LocalDateTime paymentTime;
 
-    @Column(nullable = false)
-    private String method;
+    @Column(name = "transaction_id", unique = true)
+    private String transactionId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private PaymentMethod method = PaymentMethod.VNPAY;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PaymentStatus status = PaymentStatus.PENDING;
 
     @ManyToOne
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
-    @Column(unique = true)
-    private String transactionId;
-
-    @Column(name = "payment_reference", unique = true)
-    private String paymentReference;
-
-    @Column(name = "vnpay_order_id", unique = true)
-    private String vnpayOrderId;
-
-    @CreationTimestamp
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
 }

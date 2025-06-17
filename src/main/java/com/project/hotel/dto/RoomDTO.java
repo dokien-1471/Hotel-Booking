@@ -15,14 +15,14 @@ import java.util.List;
 public class RoomDTO {
     private Long id;
 
-    @NotNull(message = "Room number is required")
-    private String roomNumber;
+    @NotNull(message = "Vui lòng nhập số phòng")
+    private String roomNumber; // Số phòng
 
-    @NotNull(message = "Room type is required")
-    private String roomType;
+    @NotNull(message = "Vui lòng chọn loại phòng")
+    private String roomType; // Loại phòng
 
-    @NotNull(message = "Price is required")
-    @Positive(message = "Price must be positive")
+    @NotNull(message = "Vui lòng nhập giá phòng")
+    @Positive(message = "Giá phòng phải lớn hơn 0")
     private BigDecimal price;
 
     private boolean available;
@@ -32,4 +32,8 @@ public class RoomDTO {
     private List<String> images;
 
     private List<String> amenities;
+
+    private String name;
+
+    private String type;
 }

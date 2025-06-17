@@ -1,10 +1,8 @@
 package com.project.hotel.constant;
 
 public enum BookingStatus {
-  PENDING, // Đang chờ xác nhận
+  PENDING, // Đang chờ thanh toán
   CONFIRMED, // Đã xác nhận
-  CHECKED_IN, // Đã check-in
-  CHECKED_OUT, // Đã check-out
   CANCELLED, // Đã hủy
-  PAID // Hoàn thành
+  COMPLETED // Đã hoàn thành
 }

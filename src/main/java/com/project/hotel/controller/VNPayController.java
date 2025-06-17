@@ -1,59 +1,100 @@
 package com.project.hotel.controller;
 
-import com.project.hotel.dto.VNPayRequestDTO;
-import com.project.hotel.dto.VNPayResponseDTO;
-import com.project.hotel.service.PaymentService;
+import com.project.hotel.entity.Booking;
+import com.project.hotel.entity.Payment;
+import com.project.hotel.service.BookingService;
 import com.project.hotel.service.VNPayService;
+import com.project.hotel.dto.VNPayResponseDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
 
-import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestController
-@RequestMapping("/api/payments/vnpay")
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/vnpay")
 @RequiredArgsConstructor
 public class VNPayController {
 
   private final VNPayService vnPayService;
-  private final PaymentService paymentService;
+  private final BookingService bookingService;
 
-  @PostMapping("/create-payment")
-  public ResponseEntity<Map<String, String>> createPayment(@RequestBody VNPayRequestDTO request) {
-    String paymentUrl = vnPayService.createPaymentUrl(request);
-    Map<String, String> response = new HashMap<>();
-    response.put("paymentUrl", paymentUrl);
-    return ResponseEntity.ok(response);
+  @PostMapping("/create-payment/{bookingId}")
+  public ResponseEntity<String> createPayment(@PathVariable Long bookingId, HttpServletRequest request) {
+    try {
+      String paymentUrl = vnPayService.createPaymentUrl(bookingId, request);
+      return ResponseEntity.ok(paymentUrl);
+    } catch (Exception e) {
+      log.error("Error creating payment for booking {}: {}", bookingId, e.getMessage(), e);
+      return ResponseEntity.badRequest().body("Error creating payment: " + e.getMessage());
+    }
   }
 
-  @GetMapping("/payment-callback")
-  public ResponseEntity<Map<String, String>> paymentCallback(
-      @RequestParam("vnp_ResponseCode") String responseCode,
-      @RequestParam("vnp_TxnRef") String txnRef,
-      @RequestParam("vnp_TransactionNo") String transactionNo) {
+  @PostMapping("/verify")
+  public ResponseEntity<Map<String, Object>> verifyPayment(@RequestBody Map<String, String> vnpParams) {
+    try {
+      // Validate parameters
+      if (!validateVNPayParams(vnpParams)) {
+        return ResponseEntity.badRequest().body(Map.of(
+            "success", false,
+            "message", "Invalid payment parameters"));
+      }
 
-    VNPayResponseDTO response = vnPayService.processPaymentResponse(responseCode, txnRef, transactionNo);
+      // Process payment return and update booking status
+      Payment payment = vnPayService.processPaymentReturn(vnpParams);
 
-    Map<String, String> result = new HashMap<>();
-    if ("00".equals(response.getResponseCode())) {
-      result.put("status", "success");
-      result.put("message", "Payment successful");
-    } else {
-      result.put("status", "failed");
-      result.put("message", "Payment failed");
+      return ResponseEntity.ok(Map.of(
+          "success", true,
+          "message", "Payment verified successfully",
+          "paymentId", payment.getId(),
+          "bookingId", payment.getBooking().getId(),
+          "status", payment.getStatus()));
+    } catch (Exception e) {
+      log.error("Error verifying payment: {}", e.getMessage(), e);
+      return ResponseEntity.badRequest().body(Map.of(
+          "success", false,
+          "message", e.getMessage()));
     }
-
-    return ResponseEntity.ok(result);
   }
 
-  private String getClientIp(HttpServletRequest request) {
-    String xForwardedFor = request.getHeader("X-Forwarded-For");
-    if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-      return xForwardedFor.split(",")[0];
+  @GetMapping("/return")
+  public RedirectView paymentReturn(HttpServletRequest request) {
+    // Get all parameters from VNPay
+    Map<String, String> vnpParams = request.getParameterMap().entrySet().stream()
+        .collect(java.util.stream.Collectors.toMap(
+            Map.Entry::getKey,
+            e -> e.getValue()[0]));
+
+    try {
+      // Validate parameters
+      if (!validateVNPayParams(vnpParams)) {
+        return new RedirectView("/payment-error?message=Invalid payment parameters");
+      }
+
+      // Process payment return
+      Payment payment = vnPayService.processPaymentReturn(vnpParams);
+
+      // Redirect based on payment status
+      if (payment.getStatus().toString().equals("PAID")) {
+        return new RedirectView("/payment-success?" + request.getQueryString());
+      } else {
+        return new RedirectView("/payment-error?message=Payment failed");
+      }
+    } catch (Exception e) {
+      log.error("Error processing payment return: {}", e.getMessage(), e);
+      return new RedirectView("/payment-error?message=" + e.getMessage());
     }
-    return request.getRemoteAddr();
+  }
+
+  private boolean validateVNPayParams(Map<String, String> params) {
+    return params != null &&
+        params.containsKey("vnp_ResponseCode") &&
+        params.containsKey("vnp_TxnRef") &&
+        params.containsKey("vnp_TransactionNo") &&
+        params.containsKey("vnp_SecureHash");
   }
 }

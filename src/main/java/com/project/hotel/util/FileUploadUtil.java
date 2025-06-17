@@ -10,9 +10,10 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
 public class FileUploadUtil {
+    private static final String ROOT_PATH = System.getProperty("user.dir");
 
     public static String saveFile(String uploadDir, String fileName, MultipartFile multipartFile) throws IOException {
-        Path uploadPath = Paths.get(uploadDir);
+        Path uploadPath = Paths.get(ROOT_PATH, uploadDir);
 
         if (!Files.exists(uploadPath)) {
             Files.createDirectories(uploadPath);
@@ -28,7 +29,7 @@ public class FileUploadUtil {
     }
 
     public static void deleteFile(String filePath) throws IOException {
-        Path path = Paths.get(filePath);
+        Path path = Paths.get(ROOT_PATH, filePath);
         Files.deleteIfExists(path);
     }
 }

@@ -11,9 +11,14 @@ import com.project.hotel.service.BookingService;
 import com.project.hotel.service.RoomService;
 import com.project.hotel.service.UserService;
 import com.project.hotel.constant.BookingStatus;
-import com.project.hotel.constant.RoomType;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.project.hotel.constant.PaymentStatus;
+import com.project.hotel.exception.ResourceNotFoundException;
+import com.project.hotel.exception.ValidationException;
+import com.project.hotel.exception.BookingException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,337 +28,460 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.math.BigDecimal;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
+@Transactional
 public class BookingServiceImpl implements BookingService {
 
     private final BookingRepository bookingRepository;
     private final UserService userService;
     private final RoomService roomService;
 
-    @Autowired
-    public BookingServiceImpl(BookingRepository bookingRepository, UserService userService, RoomService roomService) {
-        this.bookingRepository = bookingRepository;
-        this.userService = userService;
-        this.roomService = roomService;
-    }
-
     @Override
+    @Transactional
     public BookingDTO createBooking(BookingDTO bookingDTO) {
-        // Validate check-in and check-out dates
-        if (bookingDTO.getCheckInDate().isAfter(bookingDTO.getCheckOutDate())) {
-            throw new RuntimeException("Check-in date cannot be after check-out date");
-        }
+        try {
+            validateBookingDTO(bookingDTO);
+            validateBookingDates(bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
 
-        // Get user and room entities
-        User user = userService.findUserEntityById(bookingDTO.getUserId());
-        Room room = roomService.findRoomEntityById(bookingDTO.getRoomId());
+            User user = userService.findUserEntityById(bookingDTO.getUserId());
+            Room room = roomService.findRoomEntityById(bookingDTO.getRoomId());
 
-        // Check if room is available
-        if (!room.isAvailable()) {
-            throw new RuntimeException("Room is not available for booking");
-        }
+            validateRoomAvailability(room, bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
 
-        // Check if room is already booked for the requested dates
-        List<Booking> existingBookings = bookingRepository.findBookingsInDateRange(
-                bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
+            BigDecimal totalPrice = calculateTotalPrice(room, bookingDTO.getCheckInDate(),
+                    bookingDTO.getCheckOutDate());
 
-        boolean roomAlreadyBooked = existingBookings.stream()
-                .anyMatch(booking -> booking.getRoom().getId().equals(room.getId()));
-
-        if (roomAlreadyBooked) {
-            throw new RuntimeException("Room is already booked for the selected dates");
-        }
-
-        // Calculate total price based on number of days and room price
-        long days = ChronoUnit.DAYS.between(bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
-        if (days == 0)
-            days = 1; // Minimum 1 day charge
-
-        // Create booking entity
-        Booking booking = new Booking();
-        booking.setUser(user);
-        booking.setRoom(room);
-        booking.setCheckInDate(bookingDTO.getCheckInDate());
-        booking.setCheckOutDate(bookingDTO.getCheckOutDate());
-        booking.setTotalPrice(room.getPrice().multiply(java.math.BigDecimal.valueOf(days)));
-        booking.setStatus(BookingStatus.PENDING);
-        booking.setBookingReference(generateBookingReference());
-        booking.setBookingDate(LocalDateTime.now());
-
-        // Save booking
-        Booking savedBooking = bookingRepository.save(booking);
-
-        // Update room availability
-        room.setAvailable(false);
-        roomService.updateRoom(room.getId(), convertRoomToDTO(room));
-
-        // Convert saved entity to DTO
-        return convertToDTO(savedBooking);
-    }
-
-    @Override
-    public BookingDTO getBookingById(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-        return convertToDTO(booking);
-    }
-
-    @Override
-    public List<BookingDTO> getAllBookings() {
-        return bookingRepository.findAll().stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<BookingDTO> getBookingsByUserId(Long userId) {
-        User user = userService.findUserEntityById(userId);
-        return bookingRepository.findByUser(user).stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<BookingDTO> getBookingsByRoomId(Long roomId) {
-        Room room = roomService.findRoomEntityById(roomId);
-        return bookingRepository.findByRoom(room).stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<BookingDTO> getBookingsByStatus(String status) {
-        return bookingRepository.findByStatus(BookingStatus.valueOf(status)).stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<BookingDTO> getBookingsInDateRange(LocalDate startDate, LocalDate endDate) {
-        return bookingRepository.findBookingsInDateRange(startDate, endDate).stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public BookingDTO updateBookingStatus(Long id, String status) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-
-        booking.setStatus(BookingStatus.valueOf(status));
-
-        // If booking is cancelled, make the room available again
-        if (status.equals(BookingStatus.CANCELLED.name()) || status.equals(BookingStatus.PAID.name())) {
-            Room room = booking.getRoom();
-            room.setAvailable(true);
-            roomService.updateRoom(room.getId(), convertRoomToDTO(room));
-        }
-
-        Booking updatedBooking = bookingRepository.save(booking);
-        return convertToDTO(updatedBooking);
-    }
-
-    @Override
-    public BookingDTO updateBooking(Long id, BookingDTO bookingDTO) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-
-        // Validate check-in and check-out dates
-        if (bookingDTO.getCheckInDate().isAfter(bookingDTO.getCheckOutDate())) {
-            throw new RuntimeException("Check-in date cannot be after check-out date");
-        }
-
-        // Check if dates are being changed and if the room is available for those dates
-        if (!booking.getCheckInDate().equals(bookingDTO.getCheckInDate()) ||
-                !booking.getCheckOutDate().equals(bookingDTO.getCheckOutDate())) {
-
-            List<Booking> existingBookings = bookingRepository.findBookingsInDateRange(
-                    bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
-
-            boolean roomAlreadyBooked = existingBookings.stream()
-                    .anyMatch(b -> b.getRoom().getId().equals(booking.getRoom().getId()) && !b.getId().equals(id));
-
-            if (roomAlreadyBooked) {
-                throw new RuntimeException("Room is already booked for the selected dates");
-            }
-
-            // Update dates
+            Booking booking = new Booking();
+            booking.setUser(user);
+            booking.setRoom(room);
             booking.setCheckInDate(bookingDTO.getCheckInDate());
             booking.setCheckOutDate(bookingDTO.getCheckOutDate());
+            booking.setTotalPrice(totalPrice);
+            booking.setStatus(BookingStatus.PENDING);
+            booking.setBookingReference(generateBookingReference());
+            booking.setBookingDate(LocalDateTime.now());
+            booking.setGuestFullName(bookingDTO.getGuestFullName());
+            booking.setGuestEmail(bookingDTO.getGuestEmail());
+            booking.setNumOfAdults(bookingDTO.getNumOfAdults());
+            booking.setNumOfChildren(bookingDTO.getNumOfChildren());
+            booking.calculateTotalNumberOfGuest();
 
-            // Recalculate total price
-            long days = ChronoUnit.DAYS.between(bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
-            if (days == 0)
-                days = 1; // Minimum 1 day charge
-            booking.setTotalPrice(booking.getRoom().getPrice().multiply(java.math.BigDecimal.valueOf(days)));
+            Booking savedBooking = bookingRepository.save(booking);
+            updateRoomAvailability(room, false);
+
+            log.info("Created new booking with reference: {}", savedBooking.getBookingReference());
+            return convertToDTO(savedBooking);
+        } catch (Exception e) {
+            log.error("Error creating booking: {}", e.getMessage(), e);
+            throw new BookingException("Failed to create booking: " + e.getMessage(), e);
         }
+    }
 
-        // Update status if provided
-        if (bookingDTO.getStatus() != null) {
-            booking.setStatus(bookingDTO.getStatus());
+    @Override
+    @Transactional(readOnly = true)
+    public BookingDTO getBookingById(Long id) {
+        try {
+            Booking booking = findBookingEntityById(id);
+            return convertToDTO(booking);
+        } catch (Exception e) {
+            log.error("Error getting booking by id {}: {}", id, e.getMessage(), e);
+            throw new ResourceNotFoundException("Booking not found with id: " + id);
+        }
+    }
 
-            // If booking is cancelled or completed, make the room available again
-            if (bookingDTO.getStatus().equals(BookingStatus.CANCELLED) ||
-                    bookingDTO.getStatus().equals(BookingStatus.PAID)) {
-                Room room = booking.getRoom();
-                room.setAvailable(true);
-                roomService.updateRoom(room.getId(), convertRoomToDTO(room));
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingDTO> getAllBookings() {
+        try {
+            return bookingRepository.findAll().stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error getting all bookings: {}", e.getMessage(), e);
+            throw new BookingException("Failed to get bookings: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingDTO> getBookingsByUserId(Long userId) {
+        try {
+            User user = userService.findUserEntityById(userId);
+            return bookingRepository.findByUser(user).stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error getting bookings for user {}: {}", userId, e.getMessage(), e);
+            throw new BookingException("Failed to get user bookings: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingDTO> getBookingsByRoomId(Long roomId) {
+        try {
+            Room room = roomService.findRoomEntityById(roomId);
+            return bookingRepository.findByRoom(room).stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error getting bookings for room {}: {}", roomId, e.getMessage(), e);
+            throw new BookingException("Failed to get room bookings: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingDTO> getBookingsByStatus(String status) {
+        try {
+            BookingStatus bookingStatus = BookingStatus.valueOf(status.toUpperCase());
+            return bookingRepository.findByStatus(bookingStatus).stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("Invalid booking status: " + status);
+        } catch (Exception e) {
+            log.error("Error getting bookings by status {}: {}", status, e.getMessage(), e);
+            throw new BookingException("Failed to get bookings by status: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingDTO> getBookingsInDateRange(LocalDate startDate, LocalDate endDate) {
+        try {
+            validateDateRange(startDate, endDate);
+            return bookingRepository.findBookingsWithCheckInOrCheckOutInRange(startDate, endDate).stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error getting bookings in date range: {}", e.getMessage(), e);
+            throw new BookingException("Failed to get bookings in date range: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public BookingDTO updateBookingStatus(Long id, String status) {
+        try {
+            Booking booking = findBookingEntityById(id);
+            BookingStatus newStatus = BookingStatus.valueOf(status.toUpperCase());
+
+            validateStatusTransition(booking.getStatus(), newStatus);
+            booking.setStatus(newStatus);
+
+            if (newStatus == BookingStatus.CANCELLED || newStatus == BookingStatus.COMPLETED) {
+                updateRoomAvailability(booking.getRoom(), true);
             }
-        }
 
-        Booking updatedBooking = bookingRepository.save(booking);
-        return convertToDTO(updatedBooking);
+            Booking updatedBooking = bookingRepository.save(booking);
+            log.info("Updated booking {} status to {}", id, status);
+            return convertToDTO(updatedBooking);
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("Invalid booking status: " + status);
+        } catch (Exception e) {
+            log.error("Error updating booking status: {}", e.getMessage(), e);
+            throw new BookingException("Failed to update booking status: " + e.getMessage(), e);
+        }
     }
 
     @Override
+    @Transactional
+    public BookingDTO updateBooking(Long id, BookingDTO bookingDTO) {
+        try {
+            Booking booking = findBookingEntityById(id);
+            validateBookingDTO(bookingDTO);
+            validateBookingDates(bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
+
+            if (!booking.getCheckInDate().equals(bookingDTO.getCheckInDate()) ||
+                    !booking.getCheckOutDate().equals(bookingDTO.getCheckOutDate())) {
+                validateRoomAvailability(booking.getRoom(), bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate());
+                booking.setCheckInDate(bookingDTO.getCheckInDate());
+                booking.setCheckOutDate(bookingDTO.getCheckOutDate());
+                booking.setTotalPrice(calculateTotalPrice(booking.getRoom(),
+                        bookingDTO.getCheckInDate(), bookingDTO.getCheckOutDate()));
+            }
+
+            updateBookingFields(booking, bookingDTO);
+            Booking updatedBooking = bookingRepository.save(booking);
+            log.info("Updated booking {}", id);
+            return convertToDTO(updatedBooking);
+        } catch (Exception e) {
+            log.error("Error updating booking: {}", e.getMessage(), e);
+            throw new BookingException("Failed to update booking: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional
     public void deleteBooking(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-
-        // Make the room available again
-        Room room = booking.getRoom();
-        room.setAvailable(true);
-        roomService.updateRoom(room.getId(), convertRoomToDTO(room));
-
-        bookingRepository.deleteById(id);
-    }
-
-    @Override
-    public BookingDTO getBookingByReference(String reference) {
-        Booking booking = bookingRepository.findByBookingReference(reference);
-        if (booking == null) {
-            throw new RuntimeException("Booking not found with reference: " + reference);
+        try {
+            Booking booking = findBookingEntityById(id);
+            updateRoomAvailability(booking.getRoom(), true);
+            bookingRepository.deleteById(id);
+            log.info("Deleted booking {}", id);
+        } catch (Exception e) {
+            log.error("Error deleting booking: {}", e.getMessage(), e);
+            throw new BookingException("Failed to delete booking: " + e.getMessage(), e);
         }
-        return convertToDTO(booking);
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public BookingDTO getBookingByReference(String reference) {
+        try {
+            Booking booking = bookingRepository.findByBookingReference(reference)
+                    .orElseThrow(() -> new ResourceNotFoundException("Booking not found with reference: " + reference));
+            return convertToDTO(booking);
+        } catch (Exception e) {
+            log.error("Error getting booking by reference: {}", e.getMessage(), e);
+            throw new BookingException("Failed to get booking by reference: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Booking findBookingEntityById(Long id) {
         return bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
     }
 
     @Override
+    @Transactional
     public BookingDTO cancelBooking(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
+        try {
+            Booking booking = findBookingEntityById(id);
+            validateCancellation(booking);
 
-        // Check if booking can be canceled
-        if (booking.getStatus().equals(BookingStatus.CANCELLED)) {
-            throw new RuntimeException("Booking is already cancelled");
+            booking.setStatus(BookingStatus.CANCELLED);
+            updateRoomAvailability(booking.getRoom(), true);
+
+            if (booking.getPayment() != null && "SUCCESS".equals(booking.getPayment().getStatus())) {
+                handleRefund(booking.getPayment());
+            }
+
+            Booking canceledBooking = bookingRepository.save(booking);
+            log.info("Cancelled booking {}", id);
+            return convertToDTO(canceledBooking);
+        } catch (Exception e) {
+            log.error("Error cancelling booking: {}", e.getMessage(), e);
+            throw new BookingException("Failed to cancel booking: " + e.getMessage(), e);
         }
-
-        if (booking.getStatus().equals(BookingStatus.PAID)) {
-            throw new RuntimeException("Cannot cancel a completed booking");
-        }
-
-        // Check if cancellation is within allowed timeframe (e.g., 24 hours before
-        // check-in)
-        if (LocalDate.now().plusDays(1).isAfter(booking.getCheckInDate())) {
-            throw new RuntimeException("Booking cannot be cancelled within 24 hours of check-in");
-        }
-
-        // Update booking status
-        booking.setStatus(BookingStatus.CANCELLED);
-
-        // Make the room available again
-        Room room = booking.getRoom();
-        room.setAvailable(true);
-        roomService.updateRoom(room.getId(), convertRoomToDTO(room));
-
-        // If there's a payment, handle refund logic here
-        Payment payment = booking.getPayment();
-        if (payment != null && payment.getStatus().equals("SUCCESS")) {
-            // In a real application, you would integrate with a payment gateway
-            // to process the refund
-            payment.setStatus("REFUNDED");
-            // You might want to create a refund record or update payment history
-        }
-
-        // Save the updated booking
-        Booking canceledBooking = bookingRepository.save(booking);
-        return convertToDTO(canceledBooking);
     }
 
     @Override
+    @Transactional
     public BookingDTO confirmBooking(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
+        try {
+            Booking booking = findBookingEntityById(id);
+            validateConfirmation(booking);
 
-        // Check if booking can be confirmed
-        if (!booking.getStatus().equals(BookingStatus.PENDING)) {
-            throw new RuntimeException("Booking cannot be confirmed in current status: " + booking.getStatus());
+            booking.setStatus(BookingStatus.CONFIRMED);
+            Booking confirmedBooking = bookingRepository.save(booking);
+            log.info("Confirmed booking {}", id);
+            return convertToDTO(confirmedBooking);
+        } catch (Exception e) {
+            log.error("Error confirming booking: {}", e.getMessage(), e);
+            throw new BookingException("Failed to confirm booking: " + e.getMessage(), e);
         }
-
-        // Update booking status to CONFIRMED
-        booking.setStatus(BookingStatus.CONFIRMED);
-        Booking confirmedBooking = bookingRepository.save(booking);
-        return convertToDTO(confirmedBooking);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public boolean canCancelBooking(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-
-        // Check if booking is already cancelled
-        if (booking.getStatus().equals(BookingStatus.CANCELLED)) {
+        try {
+            Booking booking = findBookingEntityById(id);
+            return !booking.getStatus().equals(BookingStatus.CANCELLED) &&
+                    !booking.getStatus().equals(BookingStatus.CONFIRMED) &&
+                    !LocalDate.now().plusDays(1).isAfter(booking.getCheckInDate());
+        } catch (Exception e) {
+            log.error("Error checking if booking can be cancelled: {}", e.getMessage(), e);
             return false;
         }
-
-        // Check if booking is already completed
-        if (booking.getStatus().equals(BookingStatus.CONFIRMED)) {
-            return false;
-        }
-
-        // Check if cancellation is within allowed timeframe (24 hours before check-in)
-        return !LocalDate.now().plusDays(1).isAfter(booking.getCheckInDate());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public String getBookingStatus(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Booking not found with id: " + id));
-        return booking.getStatus().name();
+        try {
+            Booking booking = findBookingEntityById(id);
+            return booking.getStatus().name();
+        } catch (Exception e) {
+            log.error("Error getting booking status: {}", e.getMessage(), e);
+            throw new BookingException("Failed to get booking status: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean isRoomAvailable(Long roomId, LocalDate checkIn, LocalDate checkOut) {
+        // Kiểm tra xem phòng có tồn tại không
+        Room room = roomService.findRoomEntityById(roomId);
+        if (room == null) {
+            throw new ResourceNotFoundException("Room not found with id: " + roomId);
+        }
+
+        // Kiểm tra xem phòng có đang được đặt trong khoảng thời gian này không
+        List<Booking> overlappingBookings = bookingRepository.findOverlappingBookings(roomId, checkIn, checkOut);
+
+        // Phòng khả dụng nếu không có booking nào trong khoảng thời gian này
+        return overlappingBookings.isEmpty();
+    }
+
+    private void validateBookingDTO(BookingDTO bookingDTO) {
+        if (bookingDTO == null) {
+            throw new ValidationException("Booking data cannot be null");
+        }
+        if (bookingDTO.getUserId() == null) {
+            throw new ValidationException("User ID is required");
+        }
+        if (bookingDTO.getRoomId() == null) {
+            throw new ValidationException("Room ID is required");
+        }
+        if (bookingDTO.getCheckInDate() == null) {
+            throw new ValidationException("Check-in date is required");
+        }
+        if (bookingDTO.getCheckOutDate() == null) {
+            throw new ValidationException("Check-out date is required");
+        }
+        if (bookingDTO.getNumOfAdults() == null || bookingDTO.getNumOfAdults() <= 0) {
+            throw new ValidationException("Number of adults must be greater than 0");
+        }
+    }
+
+    private void validateBookingDates(LocalDate checkIn, LocalDate checkOut) {
+        if (checkIn.isAfter(checkOut)) {
+            throw new ValidationException("Check-in date must be before check-out date");
+        }
+        if (checkIn.isBefore(LocalDate.now())) {
+            throw new ValidationException("Check-in date must be in the future");
+        }
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new ValidationException("Start date and end date are required");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new ValidationException("Start date must be before end date");
+        }
+    }
+
+    private void validateRoomAvailability(Room room, LocalDate checkIn, LocalDate checkOut) {
+        if (!room.isAvailable()) {
+            throw new ValidationException("Room is not available");
+        }
+
+        List<Booking> existingBookings = bookingRepository.findBookingsWithCheckInOrCheckOutInRange(checkIn, checkOut);
+        boolean roomAlreadyBooked = existingBookings.stream()
+                .anyMatch(booking -> booking.getRoom().getId().equals(room.getId()) &&
+                        !booking.getStatus().equals(BookingStatus.CANCELLED));
+
+        if (roomAlreadyBooked) {
+            throw new ValidationException("Room is already booked for the selected dates");
+        }
+    }
+
+    private void validateStatusTransition(BookingStatus currentStatus, BookingStatus newStatus) {
+        if (currentStatus == BookingStatus.CANCELLED) {
+            throw new ValidationException("Cannot change status of a cancelled booking");
+        }
+        if (currentStatus == BookingStatus.CONFIRMED && newStatus == BookingStatus.PENDING) {
+            throw new ValidationException("Cannot change confirmed booking back to pending");
+        }
+    }
+
+    private void validateCancellation(Booking booking) {
+        if (booking.getStatus().equals(BookingStatus.CANCELLED)) {
+            throw new ValidationException("Booking is already cancelled");
+        }
+        if (booking.getStatus().equals(BookingStatus.CONFIRMED)) {
+            throw new ValidationException("Cannot cancel a confirmed booking");
+        }
+        if (LocalDate.now().plusDays(1).isAfter(booking.getCheckInDate())) {
+            throw new ValidationException("Booking cannot be cancelled within 24 hours of check-in");
+        }
+    }
+
+    private void validateConfirmation(Booking booking) {
+        if (!booking.getStatus().equals(BookingStatus.PENDING)) {
+            throw new ValidationException("Only pending bookings can be confirmed");
+        }
+    }
+
+    private void updateBookingFields(Booking booking, BookingDTO bookingDTO) {
+        if (bookingDTO.getGuestFullName() != null) {
+            booking.setGuestFullName(bookingDTO.getGuestFullName());
+        }
+        if (bookingDTO.getGuestEmail() != null) {
+            booking.setGuestEmail(bookingDTO.getGuestEmail());
+        }
+        if (bookingDTO.getNumOfAdults() != null) {
+            booking.setNumOfAdults(bookingDTO.getNumOfAdults());
+        }
+        if (bookingDTO.getNumOfChildren() != null) {
+            booking.setNumOfChildren(bookingDTO.getNumOfChildren());
+        }
+        booking.calculateTotalNumberOfGuest();
+    }
+
+    private void updateRoomAvailability(Room room, boolean available) {
+        room.setAvailable(available);
+        roomService.updateRoom(room.getId(), convertRoomToDTO(room));
+    }
+
+    private void handleRefund(Payment payment) {
+        // Implement refund logic here
+        payment.setStatus(PaymentStatus.REFUNDED);
+        // Add additional refund processing as needed
     }
 
     private String generateBookingReference() {
-        // Generate a unique booking reference (e.g., HB-UUID-TIMESTAMP)
         return "HB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase() + "-"
                 + System.currentTimeMillis() % 10000;
     }
 
+    private BigDecimal calculateTotalPrice(Room room, LocalDate checkIn, LocalDate checkOut) {
+        long numberOfDays = ChronoUnit.DAYS.between(checkIn, checkOut);
+        if (numberOfDays == 0) {
+            numberOfDays = 1;
+        }
+        return room.getPrice().multiply(BigDecimal.valueOf(numberOfDays));
+    }
+
     private BookingDTO convertToDTO(Booking booking) {
-        BookingDTO bookingDTO = new BookingDTO();
-        bookingDTO.setId(booking.getId());
-        bookingDTO.setUserId(booking.getUser().getId());
-        bookingDTO.setRoomId(booking.getRoom().getId());
-        bookingDTO.setCheckInDate(booking.getCheckInDate());
-        bookingDTO.setCheckOutDate(booking.getCheckOutDate());
-        bookingDTO.setTotalPrice(booking.getTotalPrice());
-        bookingDTO.setStatus(booking.getStatus());
-        bookingDTO.setBookingReference(booking.getBookingReference());
-        bookingDTO.setBookingDate(booking.getBookingDate());
-        bookingDTO.setSpecialRequests(booking.getSpecialRequests());
-        bookingDTO.setNumberOfGuests(booking.getNumberOfGuests());
-
-        // Additional information
-        bookingDTO.setUserFullName(booking.getUser().getFirstName() + " " + booking.getUser().getLastName());
-        bookingDTO.setRoomNumber(booking.getRoom().getRoomNumber());
-        bookingDTO.setRoomType(booking.getRoom().getRoomType());
-
-        return bookingDTO;
+        BookingDTO dto = new BookingDTO();
+        dto.setId(booking.getId());
+        dto.setUserId(booking.getUser().getId());
+        dto.setRoomId(booking.getRoom().getId());
+        dto.setRoom(convertRoomToDTO(booking.getRoom()));
+        dto.setBookingReference(booking.getBookingReference());
+        dto.setCheckInDate(booking.getCheckInDate());
+        dto.setCheckOutDate(booking.getCheckOutDate());
+        dto.setTotalPrice(booking.getTotalPrice());
+        dto.setStatus(booking.getStatus().name());
+        dto.setBookingDate(booking.getBookingDate());
+        dto.setGuestFullName(booking.getGuestFullName());
+        dto.setGuestEmail(booking.getGuestEmail());
+        dto.setNumOfAdults(booking.getNumOfAdults());
+        dto.setNumOfChildren(booking.getNumOfChildren());
+        dto.setTotalNumberOfGuest(booking.getNumberOfGuests());
+        return dto;
     }
 
     private RoomDTO convertRoomToDTO(Room room) {
-        RoomDTO roomDTO = new RoomDTO();
-        roomDTO.setId(room.getId());
-        roomDTO.setRoomNumber(room.getRoomNumber());
-        roomDTO.setRoomType(room.getRoomType());
-        roomDTO.setPrice(room.getPrice());
-        roomDTO.setAvailable(room.isAvailable());
-        roomDTO.setDescription(room.getDescription());
-        roomDTO.setImages(room.getImages());
-        return roomDTO;
+        RoomDTO dto = new RoomDTO();
+        dto.setId(room.getId());
+        dto.setRoomNumber(room.getRoomNumber());
+        dto.setRoomType(room.getRoomType());
+        dto.setType(room.getRoomType());
+        dto.setPrice(room.getPrice());
+        dto.setAvailable(room.isAvailable());
+        dto.setDescription(room.getDescription());
+        dto.setImages(room.getImages());
+        dto.setAmenities(room.getAmenities());
+        dto.setName("Phòng " + room.getRoomNumber());
+        return dto;
     }
 }

@@ -2,6 +2,7 @@ package com.project.hotel.controller;
 
 import com.project.hotel.dto.RoomDTO;
 import com.project.hotel.service.RoomService;
+import com.project.hotel.service.BookingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -10,7 +11,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -19,6 +22,7 @@ import java.util.List;
 public class RoomController {
 
     private final RoomService roomService;
+    private final BookingService bookingService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -117,5 +121,17 @@ public class RoomController {
     public ResponseEntity<List<String>> getRoomImages(@PathVariable Long id) {
         List<String> images = roomService.getRoomImages(id);
         return ResponseEntity.ok(images);
+    }
+
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<Map<String, Boolean>> checkRoomAvailability(
+            @PathVariable Long id,
+            @RequestParam String checkIn,
+            @RequestParam String checkOut) {
+        boolean isAvailable = bookingService.isRoomAvailable(
+                id,
+                LocalDate.parse(checkIn),
+                LocalDate.parse(checkOut));
+        return ResponseEntity.ok(Map.of("available", isAvailable));
     }
 }

@@ -36,13 +36,20 @@ public class UserController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<UserDTO> getUserById(@PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // Only allow users to view their own profile or admin to view any profile
-        if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
-                && !id.toString().equals(userDetails.getUsername())) {
+        // Admin can view any profile
+        if (userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            UserDTO user = userService.getUserById(id);
+            return ResponseEntity.ok(user);
+        }
+
+        // Regular user can only view their own profile
+        UserDTO authenticatedUser = userService.getUserByEmail(userDetails.getUsername());
+        if (authenticatedUser != null && id.equals(authenticatedUser.getId())) {
+            UserDTO user = userService.getUserById(id);
+            return ResponseEntity.ok(user);
+        } else {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        UserDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
     }
 
     @GetMapping("/email/{email}")
@@ -63,13 +70,13 @@ public class UserController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<UserDTO> updateUser(@PathVariable Long id, @Valid @RequestBody UserDTO userDTO,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // Only allow users to update their own profile or admin to update any profile
+
         if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
                 && !id.toString().equals(userDetails.getUsername())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        // If it's a regular user, don't allow them to change their role
+
         if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
             UserDTO existingUser = userService.getUserById(id);
             userDTO.setRole(existingUser.getRole());

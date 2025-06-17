@@ -7,6 +7,9 @@ import com.project.hotel.exception.ResourceNotFoundException;
 import com.project.hotel.service.BookingService;
 import com.project.hotel.service.PaymentService;
 import com.project.hotel.service.VNPayService;
+import com.project.hotel.entity.Booking;
+import com.project.hotel.entity.User;
+import com.project.hotel.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,13 +19,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/bookings")
 @CrossOrigin(origins = "*")
@@ -31,19 +39,87 @@ public class BookingController {
     private final BookingService bookingService;
     private final PaymentService paymentService;
     private final VNPayService vnPayService;
+    private final UserService userService;
 
     @Autowired
-    public BookingController(BookingService bookingService, PaymentService paymentService, VNPayService vnPayService) {
+    public BookingController(BookingService bookingService, PaymentService paymentService, VNPayService vnPayService,
+            UserService userService) {
         this.bookingService = bookingService;
         this.paymentService = paymentService;
         this.vnPayService = vnPayService;
+        this.userService = userService;
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    public ResponseEntity<BookingDTO> createBooking(@Valid @RequestBody BookingDTO bookingDTO) {
-        BookingDTO createdBooking = bookingService.createBooking(bookingDTO);
-        return new ResponseEntity<>(createdBooking, HttpStatus.CREATED);
+    public ResponseEntity<?> createBooking(
+            @Valid @RequestBody BookingDTO bookingDTO,
+            BindingResult bindingResult,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        log.info("Received booking request: {}", bookingDTO);
+
+        try {
+            // Get user by email from security context
+            String userEmail = userDetails.getUsername();
+            User user = userService.findByEmail(userEmail)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
+            bookingDTO.setUserId(user.getId());
+
+            // Validate request body
+            if (bookingDTO.getRoomId() == null) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(Map.of("message", "Room ID is required"));
+            }
+
+            // Validate binding result
+            if (bindingResult.hasErrors()) {
+                List<String> errors = bindingResult.getFieldErrors()
+                        .stream()
+                        .map(FieldError::getDefaultMessage)
+                        .collect(Collectors.toList());
+                log.warn("Validation errors: {}", errors);
+                return ResponseEntity
+                        .badRequest()
+                        .body(Map.of(
+                                "message", "Validation failed",
+                                "errors", errors));
+            }
+
+            // Check if room exists and is available
+            if (!bookingService.isRoomAvailable(
+                    bookingDTO.getRoomId(),
+                    bookingDTO.getCheckInDate(),
+                    bookingDTO.getCheckOutDate())) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(Map.of("message", "Room is not available for selected dates"));
+            }
+
+            // Create booking
+            BookingDTO booking = bookingService.createBooking(bookingDTO);
+            log.info("Created booking: {}", booking);
+
+            // Generate payment URL
+            String paymentUrl = vnPayService.createPaymentUrl(booking.getId(), request);
+            log.info("Generated payment URL for booking {}: {}", booking.getId(), paymentUrl);
+
+            return ResponseEntity.ok(Map.of(
+                    "bookingId", booking.getId().toString(),
+                    "paymentUrl", paymentUrl));
+        } catch (ResourceNotFoundException e) {
+            log.error("Resource not found: ", e);
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error creating booking: ", e);
+            return ResponseEntity
+                    .badRequest()
+                    .body(Map.of("message", "Failed to create booking: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/{id}")
@@ -70,13 +146,22 @@ public class BookingController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<List<BookingDTO>> getBookingsByUserId(@PathVariable Long userId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // Only allow users to view their own bookings or admin to view any booking
-        if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
-                && !userId.toString().equals(userDetails.getUsername())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        try {
+            // Only allow users to view their own bookings or admin to view any booking
+            if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
+                    && !userId.toString().equals(userDetails.getUsername())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            log.info("Fetching bookings for user ID: {}", userId);
+            List<BookingDTO> bookings = bookingService.getBookingsByUserId(userId);
+            log.info("Found {} bookings for user ID: {}", bookings.size(), userId);
+
+            return ResponseEntity.ok(bookings);
+        } catch (Exception e) {
+            log.error("Error fetching bookings for user {}: {}", userId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        List<BookingDTO> bookings = bookingService.getBookingsByUserId(userId);
-        return ResponseEntity.ok(bookings);
     }
 
     @GetMapping("/room/{roomId}")

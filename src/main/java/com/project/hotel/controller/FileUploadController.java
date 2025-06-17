@@ -1,11 +1,17 @@
 package com.project.hotel.controller;
 
 import com.project.hotel.util.FileUploadUtil;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -15,7 +21,7 @@ import java.util.UUID;
 @CrossOrigin(origins = "*")
 public class FileUploadController {
 
-    private static final String UPLOAD_DIR = "uploads/rooms";
+    private static final String UPLOAD_DIR = "uploads";
 
     @PostMapping("/room-photo")
     public ResponseEntity<?> uploadRoomPhoto(@RequestParam("file") MultipartFile file) {
@@ -27,7 +33,7 @@ public class FileUploadController {
 
         try {
             // Generate a unique file name
-            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            String fileName = UUID.randomUUID().toString() + getFileExtension(file.getOriginalFilename());
             String filePath = FileUploadUtil.saveFile(UPLOAD_DIR, fileName, file);
 
             Map<String, String> response = new HashMap<>();
@@ -43,7 +49,25 @@ public class FileUploadController {
         }
     }
 
-    @DeleteMapping("/room-photo/{fileName}")
+    @GetMapping("/{fileName:.+}")
+    public ResponseEntity<Resource> serveFile(@PathVariable String fileName) {
+        try {
+            Path filePath = Paths.get(UPLOAD_DIR).resolve(fileName).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if (resource.exists()) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.IMAGE_JPEG)
+                        .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (MalformedURLException ex) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @DeleteMapping("/{fileName}")
     public ResponseEntity<?> deleteRoomPhoto(@PathVariable String fileName) {
         try {
             FileUploadUtil.deleteFile(UPLOAD_DIR + "/" + fileName);
@@ -55,5 +79,11 @@ public class FileUploadController {
             response.put("error", "Failed to delete file: " + e.getMessage());
             return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    private String getFileExtension(String filename) {
+        if (filename == null) return "";
+        int lastDotIndex = filename.lastIndexOf('.');
+        return lastDotIndex == -1 ? "" : filename.substring(lastDotIndex);
     }
 }

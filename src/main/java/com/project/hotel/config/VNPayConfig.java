@@ -1,93 +1,39 @@
 package com.project.hotel.config;
 
-import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import lombok.Getter;
 
-@Data
+@Getter
 @Configuration
-@ConfigurationProperties(prefix = "vnpay")
 public class VNPayConfig {
+  @Value("${vnpay.tmn-code}")
   private String tmnCode;
+
+  @Value("${vnpay.hash-secret}")
   private String hashSecret;
+
+  @Value("${vnpay.url}")
   private String url;
+
+  @Value("${vnpay.return-url}")
   private String returnUrl;
-  private String command;
-  private String orderType;
-  private String locale;
-  private String currencyCode;
-  private String version;
 
-  // Getters and Setters
-  public String getTmnCode() {
-    return tmnCode;
-  }
+  @Value("${vnpay.version}")
+  private String version = "2.1.0";
 
-  public void setTmnCode(String tmnCode) {
-    this.tmnCode = tmnCode;
-  }
+  @Value("${vnpay.command}")
+  private String command = "pay";
 
-  public String getHashSecret() {
-    return hashSecret;
-  }
+  @Value("${vnpay.order-type}")
+  private String orderType = "billpayment";
 
-  public void setHashSecret(String hashSecret) {
-    this.hashSecret = hashSecret;
-  }
+  @Value("${vnpay.locale}")
+  private String locale = "vn";
 
-  public String getUrl() {
-    return url;
-  }
+  @Value("${vnpay.currency-code}")
+  private String currencyCode = "VND";
 
-  public void setUrl(String url) {
-    this.url = url;
-  }
-
-  public String getReturnUrl() {
-    return returnUrl;
-  }
-
-  public void setReturnUrl(String returnUrl) {
-    this.returnUrl = returnUrl;
-  }
-
-  public String getCommand() {
-    return command;
-  }
-
-  public void setCommand(String command) {
-    this.command = command;
-  }
-
-  public String getOrderType() {
-    return orderType;
-  }
-
-  public void setOrderType(String orderType) {
-    this.orderType = orderType;
-  }
-
-  public String getLocale() {
-    return locale;
-  }
-
-  public void setLocale(String locale) {
-    this.locale = locale;
-  }
-
-  public String getCurrencyCode() {
-    return currencyCode;
-  }
-
-  public void setCurrencyCode(String currencyCode) {
-    this.currencyCode = currencyCode;
-  }
-
-  public String getVersion() {
-    return version;
-  }
-
-  public void setVersion(String version) {
-    this.version = version;
-  }
+  @Value("${vnpay.timeout}")
+  private int timeout = 15; // minutes
 }
