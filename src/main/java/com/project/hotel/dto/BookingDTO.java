@@ -3,6 +3,7 @@ package com.project.hotel.dto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class BookingDTO {
     private Long id;
     private Long userId;
@@ -27,4 +29,5 @@ public class BookingDTO {
     private Integer numOfAdults;
     private Integer numOfChildren;
     private Integer totalNumberOfGuest;
+    private String message;
 }

@@ -75,7 +75,7 @@ export function BookingHistory({ bookings }: BookingHistoryProps) {
   const cancelBookingMutation = useMutation({
     mutationFn: async (bookingId: number) => {
       try {
-        const response = await api.post(`/api/bookings/${bookingId}/cancel`);
+        const response = await api.post(`/bookings/${bookingId}/cancel`);
         return response.data;
       } catch (error: any) {
         if (error.response?.status === 403) {

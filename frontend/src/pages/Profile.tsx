@@ -89,7 +89,7 @@ export default function Profile() {
     queryFn: async () => {
       console.log("Fetching bookings for user ID:", user?.id);
       try {
-        const response = await api.get(`/api/bookings/user/${user?.id}`);
+        const response = await api.get(`/bookings/user/${user?.id}`);
         // Transform the data to match the expected format
         const transformedBookings = response.data.map((booking: any) => ({
           id: booking.id,

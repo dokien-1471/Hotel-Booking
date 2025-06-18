@@ -23,7 +23,7 @@ const Admin = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-2">Manage your hotel operations</p>
+            <p className="text-gray-600 mt-2">Quản lý khách sạn</p>
           </div>
           <Button variant="outline" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />

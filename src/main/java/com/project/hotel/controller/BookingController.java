@@ -43,7 +43,7 @@ public class BookingController {
 
     @Autowired
     public BookingController(BookingService bookingService, PaymentService paymentService, VNPayService vnPayService,
-            UserService userService) {
+                             UserService userService) {
         this.bookingService = bookingService;
         this.paymentService = paymentService;
         this.vnPayService = vnPayService;
@@ -125,7 +125,7 @@ public class BookingController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<BookingDTO> getBookingById(@PathVariable Long id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+                                                     @AuthenticationPrincipal UserDetails userDetails) {
         BookingDTO booking = bookingService.getBookingById(id);
         // Only allow users to view their own bookings or admin to view any booking
         if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
@@ -145,11 +145,15 @@ public class BookingController {
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<List<BookingDTO>> getBookingsByUserId(@PathVariable Long userId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+                                                                @AuthenticationPrincipal UserDetails userDetails) {
         try {
+            // Get current user from userDetails
+            User currentUser = userService.findByEmail(userDetails.getUsername())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
             // Only allow users to view their own bookings or admin to view any booking
             if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
-                    && !userId.toString().equals(userDetails.getUsername())) {
+                    && !userId.equals(currentUser.getId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
 
@@ -273,15 +277,34 @@ public class BookingController {
     public ResponseEntity<BookingDTO> cancelBooking(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
-        BookingDTO booking = bookingService.getBookingById(id);
+        try {
+            BookingDTO booking = bookingService.getBookingById(id);
 
-        // Only allow users to cancel their own bookings or admin to cancel any booking
-        if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
-                && !booking.getUserId().toString().equals(userDetails.getUsername())) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            // Get current user from userDetails
+            User currentUser = userService.findByEmail(userDetails.getUsername())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+            // Only allow users to cancel their own bookings or admin to cancel any booking
+            if (!userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))
+                    && !booking.getUserId().equals(currentUser.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // Check if booking can be cancelled
+            if (!bookingService.canCancelBooking(id)) {
+                return ResponseEntity.badRequest()
+                        .body(BookingDTO.builder()
+                                .id(id)
+                                .status(bookingService.getBookingStatus(id))
+                                .message("Không thể hủy đặt phòng ở trạng thái này")
+                                .build());
+            }
+
+            BookingDTO canceledBooking = bookingService.cancelBooking(id);
+            return ResponseEntity.ok(canceledBooking);
+        } catch (Exception e) {
+            log.error("Error cancelling booking {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-
-        BookingDTO canceledBooking = bookingService.cancelBooking(id);
-        return ResponseEntity.ok(canceledBooking);
     }
 }

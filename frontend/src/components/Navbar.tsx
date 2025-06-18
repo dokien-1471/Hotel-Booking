@@ -36,9 +36,9 @@ const Navbar = ({ onAuthClick }: NavbarProps) => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#rooms" className="text-gray-700 hover:text-blue-600 transition-colors">Rooms</a>
-            <a href="#about" className="text-gray-700 hover:text-blue-600 transition-colors">About</a>
-            <a href="#contact" className="text-gray-700 hover:text-blue-600 transition-colors">Contact</a>
+            <a href="#rooms" className="text-gray-700 hover:text-blue-600 transition-colors">Phòng</a>
+            <a href="#about" className="text-gray-700 hover:text-blue-600 transition-colors">Giới thiệu</a>
+            <a href="#contact" className="text-gray-700 hover:text-blue-600 transition-colors">Liên hệ</a>
             {isAuthenticated && user?.role === 'ADMIN' && (
               <Link to="/admin" className="text-gray-700 hover:text-blue-600 transition-colors">Admin</Link>
             )}
@@ -57,12 +57,12 @@ const Navbar = ({ onAuthClick }: NavbarProps) => {
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild>
                     <Link to="/profile" className="cursor-pointer">
-                      Profile
+                      Hồ sơ
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
                     <LogOut className="h-4 w-4 mr-2" />
-                    Logout
+                    Đăng xuất
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -73,13 +73,13 @@ const Navbar = ({ onAuthClick }: NavbarProps) => {
                   onClick={() => onAuthClick('login')}
                   className="text-gray-700 hover:text-blue-600"
                 >
-                  Sign In
+                  Đăng nhập
                 </Button>
                 <Button
                   onClick={() => onAuthClick('register')}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  Sign Up
+                  Đăng ký
                 </Button>
               </>
             )}
@@ -111,7 +111,7 @@ const Navbar = ({ onAuthClick }: NavbarProps) => {
                 {isAuthenticated ? (
                   <>
                     <Link to="/profile" className="block px-3 py-2 text-gray-700 hover:text-blue-600">
-                      Profile
+                      Hồ sơ
                     </Link>
                     <Button
                       variant="outline"
@@ -119,7 +119,7 @@ const Navbar = ({ onAuthClick }: NavbarProps) => {
                       className="w-full text-red-600"
                     >
                       <LogOut className="h-4 w-4 mr-2" />
-                      Logout
+                      Đăng xuất
                     </Button>
                   </>
                 ) : (
@@ -129,13 +129,13 @@ const Navbar = ({ onAuthClick }: NavbarProps) => {
                       onClick={() => onAuthClick('login')}
                       className="w-full"
                     >
-                      Sign In
+                      Đăng nhập
                     </Button>
                     <Button
                       onClick={() => onAuthClick('register')}
                       className="w-full bg-blue-600 hover:bg-blue-700"
                     >
-                      Sign Up
+                      Đăng ký
                     </Button>
                   </>
                 )}

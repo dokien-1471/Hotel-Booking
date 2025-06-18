@@ -124,10 +124,10 @@ public class RoomServiceImpl implements RoomService {
     public void deleteRoom(Long id) {
         Room room = findRoomEntityById(id);
 
-        // Check for active bookings
-        List<Booking> activeBookings = bookingRepository.findByRoomAndStatusNot(room, BookingStatus.CANCELLED);
-        if (!activeBookings.isEmpty()) {
-            throw new ValidationException("Không thể xóa phòng vì có đơn đặt phòng đang hoạt động");
+        // Delete all bookings for this room first
+        List<Booking> bookings = bookingRepository.findByRoom(room);
+        for (Booking booking : bookings) {
+            bookingRepository.delete(booking);
         }
 
         // Delete room images if any
@@ -137,13 +137,13 @@ public class RoomServiceImpl implements RoomService {
                     String fileName = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
                     FileUploadUtil.deleteFile(UPLOAD_DIR + "/" + fileName);
                 } catch (IOException e) {
-                    // Log warning but continue with room deletion
                     log.warn("Không thể xóa ảnh {}: {}", imageUrl, e.getMessage());
                 }
             }
         }
 
         roomRepository.deleteById(id);
+        log.info("Đã xóa phòng có ID: {}", id);
     }
 
     @Override

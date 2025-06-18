@@ -455,7 +455,6 @@ public class BookingServiceImpl implements BookingService {
         dto.setId(booking.getId());
         dto.setUserId(booking.getUser().getId());
         dto.setRoomId(booking.getRoom().getId());
-        dto.setRoom(convertRoomToDTO(booking.getRoom()));
         dto.setBookingReference(booking.getBookingReference());
         dto.setCheckInDate(booking.getCheckInDate());
         dto.setCheckOutDate(booking.getCheckOutDate());
@@ -475,13 +474,10 @@ public class BookingServiceImpl implements BookingService {
         dto.setId(room.getId());
         dto.setRoomNumber(room.getRoomNumber());
         dto.setRoomType(room.getRoomType());
-        dto.setType(room.getRoomType());
         dto.setPrice(room.getPrice());
         dto.setAvailable(room.isAvailable());
         dto.setDescription(room.getDescription());
         dto.setImages(room.getImages());
-        dto.setAmenities(room.getAmenities());
-        dto.setName("Phòng " + room.getRoomNumber());
         return dto;
     }
 }

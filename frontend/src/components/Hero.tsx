@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar, MapPin, Users } from 'lucide-react';
@@ -10,16 +9,24 @@ const Hero = () => {
   const [guests, setGuests] = useState(2);
 
   return (
-    <div className="relative bg-gradient-to-r from-blue-900 via-blue-800 to-blue-600 text-white">
-      <div className="absolute inset-0 bg-black/20"></div>
+    <div className="relative text-white">
+      {/* Background Image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=1760&auto=format&fit=crop")'
+        }}
+      ></div>
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/40"></div>
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-bold mb-6 animate-fade-in">
-            Discover Your Perfect
+            Khám phá hành trình của bạn
             <span className="block text-yellow-400">Getaway</span>
           </h1>
           <p className="text-xl md:text-2xl text-blue-100 max-w-3xl mx-auto animate-fade-in">
-            Experience luxury and comfort at Haven Hotel. Book your dream stay today.
+            Trải nghiệm khách sạn đẳng cấp với chất lượng dịch vụ tuyệt vời. Đặt chỗ ngay hôm nay.
           </p>
         </div>
 
@@ -38,7 +45,7 @@ const Hero = () => {
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700 flex items-center">
                 <Calendar className="h-4 w-4 mr-2" />
